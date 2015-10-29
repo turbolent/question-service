@@ -1,0 +1,46 @@
+---
+- hosts: web
+  vars:
+    path: /srv/question-service
+  tasks:
+    - name: Ensure service directory exists
+      sudo: yes
+      file: path={{ path }}
+            state=directory
+            owner={{ ansible_ssh_user }}
+
+    - name: Copy files
+      copy: src=pom.xml 
+            dest={{ path }}
+
+    - name: Copy shell script
+      copy: src=run.sh
+            dest={{ path }}
+
+    - name: Create service configuration
+      sudo: yes
+      template: src=question-service.conf.j2
+                dest=/etc/supervisor/conf.d/question-service.conf
+
+    - name: Build JAR
+      command: mvn assembly:single -U
+      args:
+        chdir: "{{ path }}"
+
+    - name: Download lemmatizer model
+      get_url: url=https://gist.github.com/turbolent/f5215c9944badf640de7/raw/lemmatizer-model
+               dest={{ path }}
+
+    - name: Download tagger model
+      get_url: url=https://gist.github.com/turbolent/f5215c9944badf640de7/raw/tagger-model 
+               dest={{ path }}
+
+    - name: Ensure service is present
+      sudo: yes
+      supervisorctl: name=question-service 
+                     state=present
+
+    - name: Restart service
+      sudo: yes
+      supervisorctl: name=question-service 
+                     state=restarted
